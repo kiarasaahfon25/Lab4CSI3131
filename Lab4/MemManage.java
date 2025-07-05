@@ -214,6 +214,7 @@ class PgTblEntry
 	boolean used;    // Used Bit
         double tmStamp;  // Time Stamp
 	long count;   // for counting
+    
 }
 
 

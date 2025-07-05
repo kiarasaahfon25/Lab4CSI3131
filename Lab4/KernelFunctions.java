@@ -25,6 +25,7 @@ public class KernelFunctions
         int [] fl;  // new frame list
         int freeFrame;  // a frame from the free list
         int i;
+
         // Get a free frame and update the allocated frame list
         freeFrame = krn.getNextFreeFrame();  // gets next free frame
         if(freeFrame == -1)  // list must be empty - print error message and return
@@ -44,6 +45,7 @@ public class KernelFunctions
             fl[i] = freeFrame; // adds free frame to the free list
             prc.allocatedFrames = fl; // keep new list
         }
+
         // update Page Table
         prc.pageTable[vpage].frameNum = freeFrame;
         prc.pageTable[vpage].valid = true;
@@ -61,7 +63,7 @@ public class KernelFunctions
             case COUNT: pageReplAlgorithmCOUNT(vpage, prc); doingCount=true; break;
         }
     }
-    
+
     //--------------------------------------------------------------
     //  The following methods need modification to implement
     //  the three page replacement algorithms
@@ -73,104 +75,105 @@ public class KernelFunctions
     public static void doneMemAccess(int vpage, Process prc, double clock)
     {
         // Update usage for CLOCK
-        prc.pageTable[vpage].used = true;
+        prc.pageTable[vpage].used = true;  
 
         // Update time stamp for LRU
-        prc.pageTable[vpage].tmStamp = clock;  // clock can be System.currentTimeMillis() or a simulation time
+        prc.pageTable[vpage].tmStamp = clock; 
 
         // Update count for COUNT
         prc.pageTable[vpage].count++;
     }
 
-
-    // FIFO page Replacement algorithm
+    // FIFO 
     public static void pageReplAlgorithmFIFO(int vpage, Process prc)
     {
-        int vPageReplaced;  // Page to be replaced
-        int frame;  // frame to receive new page
-        // Find page to be replaced
-        frame = prc.allocatedFrames[prc.framePtr];   // get next available frame
-        vPageReplaced = findvPage(prc.pageTable,frame);     // find current page using it (i.e written to disk)
-        prc.pageTable[vPageReplaced].valid = false;  // Old page is replaced.
-        prc.pageTable[vpage].frameNum = frame;   // load page into the frame and update table
-        prc.pageTable[vpage].valid = true;             // make the page valid
+        int pageToReplace;  // Page to be replaced
+        int frame;  // frame that recieves new page
+
+        
+        frame = prc.allocatedFrames[prc.framePtr];   
+		// ^ finds next frame to replace using the process's frame pointer which points to the oldest frame 
+		pageToReplace = findvPage(prc.pageTable,frame);  // uses findvPage to find page using frame 
+        prc.pageTable[pageToReplace].valid = false; // mark old page's validity as false to show it is getting evicted 
+        prc.pageTable[vpage].frameNum = frame; 
+		// ^ loads new page into the frame and update table showing the page is associated with frame
+        prc.pageTable[vpage].valid = true;  // make the page valid to show it is loaded into physical memory
         prc.framePtr = (prc.framePtr+1) % prc.allocatedFrames.length;  // point to next frame in list
     }
 
     // CLOCK page Replacement algorithm
     public static void pageReplAlgorithmCLOCK(int vpage, Process prc)
     {
-        int framesCount = prc.allocatedFrames.length;
+        int numFrames = prc.allocatedFrames.length; //get number of frames allocated to process
+        // runs until we find a page to replace
         while (true)
         {
-            int frame = prc.allocatedFrames[prc.framePtr];
-            int vPageReplaced = findvPage(prc.pageTable, frame);
-            if (vPageReplaced == -1) {
-                System.out.println("Error: frame not found in page table.");
-                return;
-            }
-            if (!prc.pageTable[vPageReplaced].used)
+            int frame = prc.allocatedFrames[prc.framePtr]; // get frame we're considering replacing
+            int pageToReplace = findvPage(prc.pageTable, frame); //find page associated with frame
+
+            if (!prc.pageTable[pageToReplace].used) //if page was not recently used
             {  // Replace this page
-                prc.pageTable[vPageReplaced].valid = false;
+                prc.pageTable[pageToReplace].valid = false;
                 prc.pageTable[vpage].frameNum = frame;
                 prc.pageTable[vpage].valid = true;
-                prc.pageTable[vpage].used = true; // new page accessed
-                prc.framePtr = (prc.framePtr + 1) % framesCount;
+                prc.pageTable[vpage].used = true; 
+                prc.framePtr = (prc.framePtr + 1) % numFrames; // move pointer
                 break;
             }
             else
-            {
-                // Give second chance, clear used bit
-                prc.pageTable[vPageReplaced].used = false;
-                prc.framePtr = (prc.framePtr + 1) % framesCount;
+            { // if page was recently used
+                prc.pageTable[pageToReplace].used = false; //don't replace the page but set used to false so it can be replaced next time
+                prc.framePtr = (prc.framePtr + 1) % numFrames; // move pointer
             }
         }
     }
 
     public static void pageReplAlgorithmLRU(int vpage, Process prc)
     {
-        int leastRecentPage = -1;
-        double oldestTimestamp = Double.MAX_VALUE;
+        int lRUPage = -1;
+        double oldestTime = Double.MAX_VALUE;
 
-        // Find the valid page with the oldest timestamp
+        // Find  valid page with  oldest timestamp
         for (int i = 0; i < prc.pageTable.length; i++)
-        {
-            if (prc.pageTable[i].valid)
+        { 
+			//page used least frequently will have smallest timestamp 
+            if (prc.pageTable[i].valid)n //check if page is valid aka loaded into memory
             {
-                if (prc.pageTable[i].tmStamp < oldestTimestamp)
+                if (prc.pageTable[i].tmStamp < oldestTime) //check if page's timestamp is smaller  than oldest time
                 {
-                    oldestTimestamp = prc.pageTable[i].tmStamp;
-                    leastRecentPage = i;
+                    oldestTime = prc.pageTable[i].tmStamp; //make oldest time equal to page's timestamp 
+                    lRUPage = i; // make page least recently used page 
                 }
             }
         }
-
-        if (leastRecentPage == -1)
-        {
-            System.out.println("LRU: No valid pages found for replacement.");
-            return;
-        }
-
         // Replace least recently used page
-        int frame = prc.pageTable[leastRecentPage].frameNum;
-        prc.pageTable[leastRecentPage].valid = false;
+        int frame = prc.pageTable[lRUPage].frameNum;
+        prc.pageTable[lRUPage].valid = false; //not in memory 
         prc.pageTable[vpage].frameNum = frame;
-        prc.pageTable[vpage].valid = true;
-        prc.pageTable[vpage].tmStamp = System.currentTimeMillis(); // or use passed clock in doneMemAccess
+        prc.pageTable[vpage].valid = true; // in memory 
     }
 
-
-    // COUNT page Replacement algorithm
     public static void pageReplAlgorithmCOUNT(int vpage, Process prc)
     {
         int leastCountPage = -1;
         long smallestCount = Long.MAX_VALUE;
 
-        // Find page with smallest count
+        // Step 1: Decay all valid pages and track smallest count
         for (int i = 0; i < prc.pageTable.length; i++)
         {
             if (prc.pageTable[i].valid)
             {
+                // Decay count
+                prc.pageTable[i].count >>= 1;
+
+                // Boost if recently used
+                if (prc.pageTable[i].used)
+                {
+                    prc.pageTable[i].count += 128;   // You can tune this (e.g., += 8 or += 128)
+                    prc.pageTable[i].used = false;
+                }
+
+                // Find the page with the smallest count
                 if (prc.pageTable[i].count < smallestCount)
                 {
                     smallestCount = prc.pageTable[i].count;
@@ -179,20 +182,19 @@ public class KernelFunctions
             }
         }
 
+        // Step 2: Evict the page with smallest count
         if (leastCountPage == -1)
         {
             System.out.println("COUNT: No valid pages found for replacement.");
             return;
         }
 
-        // Replace the page with smallest count
         int frame = prc.pageTable[leastCountPage].frameNum;
         prc.pageTable[leastCountPage].valid = false;
         prc.pageTable[vpage].frameNum = frame;
         prc.pageTable[vpage].valid = true;
         prc.pageTable[vpage].count = 0; // reset count for new page
     }
-
 
     // finds the virtual page loaded in the specified frame fr
     public static int findvPage(PgTblEntry [] ptbl, int fr)
@@ -238,6 +240,7 @@ public class KernelFunctions
             System.out.print(" "+prc.workingSet[i]);
         }
         System.out.println();
+
         // page Table
         System.out.println("Page Table");
         if(prc.pageTable != null)
@@ -255,6 +258,7 @@ public class KernelFunctions
                 else System.out.println("   Page "+i+" is invalid (i.e not loaded)");
             }
         }
+
         // allocated frames
         System.out.println("Allocated frames (max is "+prc.numAllocatedFrames+")"+
                 " (frame pointer is "+prc.framePtr+")");
